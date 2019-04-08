@@ -1,0 +1,16 @@
+{
+  "name": "jekyll-jacked-importer",
+  "version": "1.0.0",
+  "description": "create jekyll post files from a JACKED Blag MySQL table",
+  "main": "importer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "pettazz",
+  "license": "ISC",
+  "dependencies": [
+    "mysql",
+    "turndown",
+    "slugify"
+  ]
+}

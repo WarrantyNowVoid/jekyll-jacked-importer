@@ -9,8 +9,9 @@
   "author": "pettazz",
   "license": "ISC",
   "dependencies": [
-    "mysql",
-    "turndown",
-    "slugify"
+    "cheerio",
+    "promise-mysql",
+    "slugify",
+    "turndown"
   ]
 }

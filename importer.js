@@ -2,13 +2,42 @@
 
 // import
 const config = require('./config');
-const mysql = require('mysql'),
+const cheerio = require('cheerio'),
+      mysql = require('promise-mysql'),
       fs = require('fs'),
-      td = require('turndown'),
-      slugify = require('slugify');
+      slugify = require('slugify'),
+      td = require('turndown');
 
-// config
-const turndownService = new td({ codeBlockStyle: 'fenced' })
+// constants
+const fetchAllQuery = `SELECT 
+  User.username AS 'author', 
+  BlagCategory.name AS 'category', 
+  Blag.guid AS 'guid', 
+  Blag.posted AS 'posted', 
+  Blag.alive AS 'alive', 
+  Blag.title AS 'title', 
+  Blag.headline AS 'headline', 
+  Blag.content AS 'content' 
+FROM 
+  Blag 
+    LEFT JOIN 
+      User ON User.guid = Blag.author  
+    LEFT JOIN 
+      BlagCategory ON BlagCategory.guid = Blag.category`;
+
+const getTagsForPostQuery = (guid) => `SELECT
+  Curator.name AS 'tagName'
+FROM
+  Curator,
+  CuratorRelation,
+  Blag
+WHERE
+  Blag.guid = '${guid}' AND
+  CuratorRelation.target = Blag.guid AND
+  Curator.guid = CuratorRelation.Curator`;
+
+// setup
+const turndownService = new td(config.markdown.options)
         .keep(config.markdown.keepTags)
         .addRule('preserveAttrs', {
           filter: (node) => {
@@ -20,8 +49,6 @@ const turndownService = new td({ codeBlockStyle: 'fenced' })
           },
           replacement: (innerHTML, node) => node.outerHTML})
 
-const conn = mysql.createConnection(config.mysql);
-
 // helper
 const generateFrontMatter = (blag) => {
   dateStr = toFullDateString(new Date(blag.posted * 1000));
@@ -30,17 +57,49 @@ layout: post
 guid: ${blag.guid}
 published: ${blag.alive === 1? 'true' : 'false'}
 date: ${dateStr}
-author: "${blag.author}"
+author: ${blag.author}
 title: "${blag.title}"
 tagline: "${blag.headline.replace(/[\\$'"]/g, "\\$&")}"
-category: "${blag.category}"
-tags: [blag, https, ssl, alonso, homelab, plex, let's encrypt, certbot]
-comments: true
+category: ${blag.category}
+tags: ${JSON.stringify(blag.tags)}
+comments: true ${blag.image === null ? '' : `
 image:
-  feature: blah.jpg
+  ${blag.imageType}: ${blag.image}${blag.imageHover !== null ? `
+  imageHover: "${blag.imageHover}"` : '' }`}
 ---
-
 `;
+}
+
+const generatePost = (blag) => {
+  let $post = cheerio.load(blag.content),
+      headlinerEl = $post('img.headliner');
+  let image = null,
+      imageHover = null,
+      imageType;
+
+  if(headlinerEl.length > 0){
+    image = headlinerEl.attr('src');
+    imageType = blag.category == 'Comics' ? 'feature' : 'headliner';
+    imageHover = headlinerEl.attr('title') ? headlinerEl.attr('title') : null;
+
+    if($post('img.headliner').parent('p').length > 0){
+      $post('img.headliner').parent('p').remove()
+    }else{
+      $post('img.headliner').remove();
+    }
+
+    blag.content = $post.html();
+  }
+
+  blag.image = image;
+  blag.imageHover = imageHover;
+  blag.imageType = imageType;
+
+  let frontMatter = generateFrontMatter(blag),
+      postBody = turndownService.turndown(blag.content);
+
+  return `${frontMatter}
+${postBody}`;
 }
 
 const toDateString = (dateObj) => {
@@ -58,14 +117,12 @@ const toFullDateString = (dateObj) => {
          '-0' + (dateObj.getTimezoneOffset() / 60) + '00';
 }
 
-
-// doing the work
 const createPostFile = (blag) => {
   const time = new Date(blag.posted * 1000),
         sluggedTitle = slugify(blag.title, {lower: true, remove: /[*+~.,#?/()'"!:@]/g}),
         fileName = `${config.paths.postsOutDir}/${toDateString(time)}-${sluggedTitle}-${blag.guid}.md`;
 
-  let post = generateFrontMatter(blag) + turndownService.turndown(blag.content);
+  let post = generatePost(blag);
 
   fs.writeFile(fileName, post, () => {
     console.info(`Wrote ${fileName}`);
@@ -75,19 +132,42 @@ const createPostFile = (blag) => {
 
 // main, i guess? what's that in node?
 // if i wanted to to this "right" i'd export a method but whatever
-conn.connect(function(err) {
-  if (err) throw err;
+let connection,
+    posts;
+
+mysql.createConnection(config.mysql).then((conn) => {
   console.info("Connected");
+  connection = conn;
 
-  conn.query("SELECT * FROM Blag", function (err, result, fields) {
-    if (err) throw err;
-    console.info(`Fetched ${result.length} entries from Blag`);
+  return connection.query(fetchAllQuery);
+}).then( async (result) => {
+  console.info(`Fetched ${result.length} entries from Blag`);
+  posts = result;
 
-    conn.destroy();
-    console.info('Destroyed connection');
+  for(var i = posts.length - 1; i >= 0; i--){
+    const guid = posts[i].guid;
 
-    for (var i = result.length - 1; i >= 0; i--) {
-      createPostFile(result[i]);
+    tagsResult = await connection.query(getTagsForPostQuery(guid));
+    console.info(`Fetched ${tagsResult.length} tags for ${guid}`);
+
+    let tags = tagsResult.reduce((acc, val) => {
+      acc.push(val.tagName);
+      return acc;
+    }, []);
+
+    posts[i].tags = tags;
+  }
+  return posts;
+}).then((result) => {
+  for(var i = result.length - 1; i >= 0; i--){
+    createPostFile(result[i]);
+  }
+
+  connection.end();
+  console.info("Closed connection");
+}).catch((err) => {
+    if(connection && connection.end){
+      connection.end();
     }
-  });
+    console.error(err);
 });

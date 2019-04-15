@@ -82,10 +82,10 @@ const generatePost = (blag) => {
     imageType = blag.category == 'Comics' ? 'feature' : 'headliner';
     imageHover = headlinerEl.attr('title') ? headlinerEl.attr('title') : null;
 
-    if($post('img.headliner').parent('p').length > 0){
-      $post('img.headliner').parent('p').remove()
-    }else{
-      $post('img.headliner').remove();
+    let parentGraph = $post('img.headliner').parent('p');
+    $post('img.headliner').remove();
+    if(!parentGraph.text().trim().length > 0){
+      parentGraph.remove();
     }
 
     blag.content = $post.html();

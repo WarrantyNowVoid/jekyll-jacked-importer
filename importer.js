@@ -78,7 +78,7 @@ const generatePost = (blag) => {
       imageType;
 
   if(headlinerEl.length > 0){
-    image = headlinerEl.attr('src');
+    image = headlinerEl.attr('src').replace(/^\/+/g, '');
     imageType = blag.category == 'Comics' ? 'feature' : 'headliner';
     imageHover = headlinerEl.attr('title') ? headlinerEl.attr('title') : null;
 

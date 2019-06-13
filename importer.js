@@ -59,7 +59,7 @@ published: ${blag.alive === 1? 'true' : 'false'}
 date: ${dateStr}
 author: ${blag.author}
 title: "${blag.title}"
-excerpt: "${blag.headline.replace(/[\\$'"]/g, "\\$&")}"
+excerpt: "${blag.headline.replace(/[\\$"]/g, "\\$&")}"
 category: ${blag.category}
 tags: ${JSON.stringify(blag.tags)}
 comments: true ${blag.image === null ? '' : `

@@ -62,7 +62,9 @@ title: "${blag.title}"
 excerpt: "${blag.headline.replace(/[\\$"]/g, "\\$&")}"
 category: ${blag.category}
 tags: ${JSON.stringify(blag.tags)}
-comments: true ${blag.image === null ? '' : `
+comments: true ${blag.video === null ? '' : `
+video:
+    youtube: "${blag.video}"`}${blag.image === null ? '' : `
 image:
   ${blag.imageType}: ${blag.image}${blag.imageHover !== null ? `
   imageHover: "${blag.imageHover}"` : '' }`}
@@ -94,6 +96,19 @@ const generatePost = (blag) => {
   blag.image = image;
   blag.imageHover = imageHover;
   blag.imageType = imageType;
+
+  blag.video = null;
+  if(blag.category == "Videos"){
+    let $post = cheerio.load(blag.content),
+        iframeEl = $post('iFrame');
+        youtubeURL = iframeEl.attr('src');
+
+    if(iframeEl.length > 0 && youtubeURL.length > 0){
+      blag.video = youtubeURL.replace(/^\/+/g, 'https://');
+      iframeEl.remove();
+      blag.content = $post.html();
+    }
+  }
 
   let frontMatter = generateFrontMatter(blag),
       postBody = turndownService.turndown(blag.content);

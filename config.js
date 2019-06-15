@@ -16,5 +16,14 @@ module.exports = {
 
   paths: {
     postsOutDir: './posts'
-  }
+  },
+
+  blacklist: ['123-bad-post'],
+
+  transforms: [
+    ['FART', 'LOUD BUTT ANNOUNCEMENT', 'g'],
+    ['giraffe', 'Tall Horse', 'i']
+  ],
+
+  includeDrafts: false
 };

@@ -110,6 +110,18 @@ const generatePost = (blag) => {
     }
   }
 
+  if(config.transforms.length > 0){
+    for(const rule of config.transforms){
+      const match = new RegExp(rule[0], rule[2]),
+            replace = rule[1];
+
+      blag.title = blag.title.replace(match, replace);
+      blag.headline = blag.headline.replace(match, replace);
+      blag.content = blag.content.replace(match, replace);
+      blag.tags = blag.tags.map(tag => tag.replace(match, replace));
+    }
+  }
+
   let frontMatter = generateFrontMatter(blag),
       postBody = turndownService.turndown(blag.content);
 
@@ -133,15 +145,19 @@ const toFullDateString = (dateObj) => {
 }
 
 const createPostFile = (blag) => {
-  const time = new Date(blag.posted * 1000),
-        sluggedTitle = slugify(blag.title, {lower: true, remove: /[*+~.,#?/()'"!:@]/g}),
-        fileName = `${config.paths.postsOutDir}/${toDateString(time)}-${sluggedTitle}-${blag.guid}.md`;
+  if(config.blacklist.length > 0 && !config.blacklist.includes(blag.guid)){
+    if(blag.alive === 1 || (config.includeDrafts && blag.alive === 0)){
+      const time = new Date(blag.posted * 1000),
+            sluggedTitle = slugify(blag.title, {lower: true, remove: /[*+~.,#?/()'"!:@]/g}),
+            fileName = `${config.paths.postsOutDir}/${toDateString(time)}-${sluggedTitle}-${blag.guid}.md`;
 
-  let post = generatePost(blag);
+      let post = generatePost(blag);
 
-  fs.writeFile(fileName, post, () => {
-    console.info(`Wrote ${fileName}`);
-  });
+      fs.writeFile(fileName, post, () => {
+        console.info(`Wrote ${fileName}`);
+      });
+    }
+  }
 }
 
 
